@@ -1,20 +1,14 @@
-// app/layout.tsx
-import './globals.css';
+// src/app/layout.tsx
+import "./globals.css";
+import Providers from "./providers";
+import type { ReactNode } from "react";
 
-export const metadata = {
-  title: 'My App',
-  description: 'Next.js App Router Example',
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <head />
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
