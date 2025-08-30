@@ -13,41 +13,43 @@ model Auth {
   password  String
   role      Role
   createdAt DateTime @default(now())
-  student   Student? @relation(fields: [studentId], references: [id])
-  studentId String?  @unique @db.ObjectId      // <-- ADD @unique
-  company   Company? @relation(fields: [companyId], references: [id])
-  companyId String?  @unique @db.ObjectId      // <-- ADD @unique
-  tpo       TPO?     @relation(fields: [tpoId], references: [id])
-  tpoId     String?  @unique @db.ObjectId      // <-- ADD @unique
+
+  // One-to-one relationships without foreign keys in Auth
+  student   Student?
+  company   Company?
+  tpo       TPO?
 }
 
-
 model Student {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  rollNo    String   @unique
-  branch    String
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  rollNo         String   @unique
+  branch         String
   graduationYear Int
-  createdAt DateTime @default(now())
+  createdAt      DateTime @default(now())
 
-  auth      Auth?
+  authId         String   @unique @db.ObjectId
+  auth           Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
 }
 
 model Company {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  hrName    String
-  hrContact String
-  createdAt DateTime @default(now())
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  hrName     String
+  hrContact  String
   hrLinkedIn String
-  auth      Auth?
+  createdAt  DateTime @default(now())
+
+  authId     String   @unique @db.ObjectId
+  auth       Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
 }
 
 model TPO {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  institutionName String
-  contactNo String
-  createdAt DateTime @default(now())
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionName  String
+  contactNo        String
+  createdAt        DateTime @default(now())
 
-  auth      Auth?
+  authId           String   @unique @db.ObjectId
+  auth             Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
 }
 
 enum Role {
