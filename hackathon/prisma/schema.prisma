@@ -1,15 +1,57 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+}
+
+model Auth {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+  student   Student? @relation(fields: [studentId], references: [id])
+  studentId String?  @unique @db.ObjectId      // <-- ADD @unique
+  company   Company? @relation(fields: [companyId], references: [id])
+  companyId String?  @unique @db.ObjectId      // <-- ADD @unique
+  tpo       TPO?     @relation(fields: [tpoId], references: [id])
+  tpoId     String?  @unique @db.ObjectId      // <-- ADD @unique
+}
+
+
+model Student {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  rollNo    String   @unique
+  branch    String
+  graduationYear Int
+  createdAt DateTime @default(now())
+
+  auth      Auth?
+}
+
+model Company {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  hrName    String
+  hrContact String
+  createdAt DateTime @default(now())
+  hrLinkedIn String
+  auth      Auth?
+}
+
+model TPO {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionName String
+  contactNo String
+  createdAt DateTime @default(now())
+
+  auth      Auth?
+}
+
+enum Role {
+  STUDENT
+  COMPANY
+  TPO
 }
