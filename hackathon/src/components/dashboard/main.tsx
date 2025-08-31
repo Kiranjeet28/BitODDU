@@ -103,19 +103,21 @@ const PlacementTracker = () => {
     </div>
   );
 
-  const NavItem = ({ icon, label, id }) => (
+  const NavItem = ({ icon, label, id }: {icon: any, label: string, id: string}) => (
     <button
+      type="button"
       onClick={() => setActiveTab(id)}
       className={`w-full flex items-center space-x-3 p-3 rounded-lg text-left mb-2 transition-colors ${
         activeTab === id ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
       }`}
+      aria-current={activeTab === id ? "page" : undefined}
     >
       {icon}
       <span className="text-sm font-medium">{label}</span>
     </button>
   );
 
-  const StatCard = ({ icon, title, value, color = "blue" }) => (
+  const StatCard = ({ icon, title, value, color = "blue" }:{icon: any, title: string, value: number | string, color?: string}) => (
     <div className="bg-white p-6 rounded-lg border border-gray-200">
       <div className="flex items-center justify-between">
         <div>
