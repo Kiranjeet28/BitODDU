@@ -3,7 +3,7 @@ import { GlassButton } from "./glass-button"
 
 export default function PlacementHero() {
   return (
-    <main className="relative min-h-screen w-full">
+    <main className="relative h-[55vh] w-full">
       {/* background image */}
       <Image
         src="/2.png"
