@@ -1,9 +1,15 @@
-// src/app/providers.tsx
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+import { StudentProvider } from "@/contexts/StudentContext";
 import { ReactNode } from "react";
 
 export default function Providers({ children }: { children: ReactNode }) {
-    return <SessionProvider>{children}</SessionProvider>;
+    return (
+        <SessionProvider>
+            <StudentProvider>
+                {children}
+            </StudentProvider>
+        </SessionProvider>
+    );
 }

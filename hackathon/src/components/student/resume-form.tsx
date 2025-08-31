@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import useSWR from "swr"
+import useSWR, { mutate } from "swr"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { resumeSchema, type ResumeInput } from "@/app/api/student/schema"
+import { useStudent } from "@/contexts/StudentContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,18 +13,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-type Props = {
-    initialStudentId?: string
-}
-
-export default function ResumeForm({ initialStudentId = "" }: Props) {
-    const [rollNo, setRollNo] = React.useState(initialStudentId)
+export default function ResumeForm() {
+    const { rollNo, setRollNo, isLoading: contextLoading } = useStudent()
+    const [localRollNo, setLocalRollNo] = React.useState("")
 
     const form = useForm<ResumeInput>({
-        resolver: zodResolver(resumeSchema),
+        resolver: zodResolver(resumeSchema) as any,
         defaultValues: {
             action: "resume",
             name: "",
@@ -43,7 +42,7 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
         mode: "onBlur",
     })
 
-    const { reset, handleSubmit, register, control, formState } = form
+    const { reset, handleSubmit, register, control, formState, setValue } = form
     const { errors, isSubmitting } = formState
 
     // Arrays
@@ -53,18 +52,24 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
     const skillsFA = useFieldArray({ control, name: "skills" })
     const languagesFA = useFieldArray({ control, name: "languages" })
 
-    // Load data when rollNo is set
-    const { data, isValidating } = useSWR(
-        rollNo ? `/api/student` : null,
+    // Set local rollNo when context rollNo changes
+    React.useEffect(() => {
+        if (rollNo) {
+            setLocalRollNo(rollNo)
+        }
+    }, [rollNo])
+
+    // Load data when rollNo is available
+    const { data, isValidating, error } = useSWR(
+        rollNo ? `/api/student?rollNo=${rollNo}` : null,
         fetcher,
     )
 
     React.useEffect(() => {
         if (data?.success && data?.student) {
-            const { student, ..._rest } = data
-            // Normalize empty strings for optional URL/number fields
+            const student = data.student
             reset({
-                action : "resume",
+                action: "resume",
                 name: student.name || "",
                 address: student.address || "",
                 linkedin: student.linkedin || "",
@@ -79,22 +84,64 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                 skills: student.skills || [],
                 languages: student.languages || [],
             })
+        } else if (error) {
+            console.error("Error loading student data:", error)
+            toast.error("Failed to load student data")
         }
-    }, [data, reset])
+    }, [data, error, reset])
+
+    const handleLoadStudent = () => {
+        if (!localRollNo.trim()) {
+            toast.error("Please enter a roll number")
+            return
+        }
+        setRollNo(localRollNo.trim())
+    }
+
+    const handleClearStudent = () => {
+        setLocalRollNo("")
+        // Don't clear context rollNo to maintain persistence
+        reset({
+            action: "resume",
+            name: "",
+            address: "",
+            linkedin: "",
+            phoneNo: "",
+            course: "",
+            branch: "",
+            graduationYear: new Date().getFullYear(),
+            cgpa: undefined,
+            education: [],
+            experience: [],
+            projects: [],
+            skills: [],
+            languages: [],
+        })
+    }
 
     async function onSubmit(values: ResumeInput) {
         if (!rollNo) {
-            // @ts-expect-error sonnar
-            sonnar.error("Student ID required", "Enter a student ID to save the resume.")
+            toast.error("Student ID required")
             return
         }
+
         try {
+            const payload = {
+                rollNo,
+                ...values,
+            }
+
+            console.log("Submitting payload:", payload)
+
             const res = await fetch(`/api/student`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ rollNo, ...values }),
+                body: JSON.stringify(payload),
             })
+
             const json = await res.json()
+            console.log("API Response:", json)
+
             if (!res.ok || !json.success) {
                 const details = json?.details?.fieldErrors
                     ? Object.entries(json.details.fieldErrors)
@@ -103,14 +150,27 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                     : json.error || "Unknown error"
                 throw new Error(details)
             }
-            // @ts-expect-error sonnar
-            sonnar.success("Saved", "Resume has been updated.")
+
+            toast.success("Resume saved successfully!")
+
+            // Revalidate the data to reflect any changes
+            mutate(`/api/student?rollNo=${rollNo}`)
+
         } catch (e: any) {
-            // @ts-expect-error sonnar
-            sonnar.error("Failed to save", e?.message || "Unexpected error occurred")
+            console.error("Save error:", e)
+            toast.error(e?.message || "Failed to save resume")
         }
     }
 
+    if (contextLoading) {
+        return <div className="flex items-center justify-center p-8">Loading...</div>
+    }
+
+
+    function handleLoadData(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
+        event.preventDefault();
+        handleLoadStudent();
+    }
     return (
         <div className="space-y-6">
             {/* Student ID */}
@@ -121,11 +181,11 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
                         <div>
-                            <Label htmlFor="rollNo">Student ID</Label>
+                            <Label htmlFor="rollNo">Student Roll Number</Label>
                             <Input
                                 id="rollNo"
                                 placeholder="e.g., 223"
-                                value={rollNo}
+                                value={rollNo || ""}
                                 onChange={(e) => setRollNo(e.target.value)}
                                 aria-describedby="studentIdHelp"
                             />
@@ -136,10 +196,9 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                         <div className="flex items-end">
                             <Button
                                 type="button"
-                                onClick={() => {
-                                    // trigger SWR reload by changing key (rollNo state already bound)
-                                }}
+                                onClick={handleLoadData}
                                 disabled={!rollNo || isValidating}
+                                variant="outline"
                             >
                                 {isValidating ? "Loading..." : "Load"}
                             </Button>
@@ -159,7 +218,7 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                             <Input placeholder="John Doe" {...register("name")} />
                         </Field>
                         <Field label="Phone Number" error={errors.phoneNo?.message}>
-                            <Input placeholder="+1 555 0100" {...register("phoneNo")} />
+                            <Input placeholder="1234567890" {...register("phoneNo")} />
                         </Field>
                         <Field label="LinkedIn URL" error={errors.linkedin?.message}>
                             <Input placeholder="https://linkedin.com/in/username" {...register("linkedin")} />
@@ -174,10 +233,19 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                             <Input placeholder="Computer Science" {...register("branch")} />
                         </Field>
                         <Field label="Graduation Year" error={errors.graduationYear?.message}>
-                            <Input type="number" placeholder="2026" {...register("graduationYear")} />
+                            <Input
+                                type="number"
+                                placeholder="2026"
+                                {...register("graduationYear", { valueAsNumber: true })}
+                            />
                         </Field>
                         <Field label="CGPA" error={errors.cgpa?.message}>
-                            <Input type="number" step="0.01" placeholder="8.5" {...register("cgpa")} />
+                            <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="8.5"
+                                {...register("cgpa", { valueAsNumber: true })}
+                            />
                         </Field>
                     </div>
                 </CardContent>
@@ -187,7 +255,13 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
             <ArrayCard
                 title="Education"
                 emptyCta="Add education"
-                onAdd={() => educationFA.append({ course: "", collegeName: "", startYear: new Date().getFullYear(), duration: 4, cgpa: undefined })}
+                onAdd={() => educationFA.append({
+                    course: "",
+                    collegeName: "",
+                    startYear: new Date().getFullYear(),
+                    duration: 4,
+                    cgpa: undefined
+                })}
             >
                 {educationFA.fields.map((f, idx) => (
                     <div key={f.id} className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -198,20 +272,33 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                             <Input {...register(`education.${idx}.collegeName` as const)} placeholder="ABC Institute" />
                         </Field>
                         <Field label="Start Year" error={errors.education?.[idx]?.startYear?.message}>
-                            <Input {...register(`education.${idx}.startYear` as const)} placeholder="2022" />
+                            <Input
+                                type="number"
+                                {...register(`education.${idx}.startYear` as const, { valueAsNumber: true })}
+                                placeholder="2022"
+                            />
                         </Field>
-                        <Field label="Duration" error={errors.education?.[idx]?.duration?.message}>
-                            <Input {...register(`education.${idx}.duration` as const)} placeholder="4 years" />
+                        <Field label="Duration (years)" error={errors.education?.[idx]?.duration?.message}>
+                            <Input
+                                type="number"
+                                {...register(`education.${idx}.duration` as const, { valueAsNumber: true })}
+                                placeholder="4"
+                            />
                         </Field>
                         <Field label="CGPA" error={errors.education?.[idx]?.cgpa?.message}>
-                            <Input type="number" step="0.01" {...register(`education.${idx}.cgpa` as const)} placeholder="8.2" />
+                            <Input
+                                type="number"
+                                step="0.01"
+                                {...register(`education.${idx}.cgpa` as const, { valueAsNumber: true })}
+                                placeholder="8.2"
+                            />
                         </Field>
                         <div className="flex items-end">
                             <Button variant="secondary" type="button" onClick={() => educationFA.remove(idx)}>
                                 Remove
                             </Button>
                         </div>
-                        <Separator className="md:col-span-2" />
+                        {idx < educationFA.fields.length - 1 && <Separator className="md:col-span-2" />}
                     </div>
                 ))}
             </ArrayCard>
@@ -239,10 +326,18 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                             <Input {...register(`experience.${idx}.position` as const)} placeholder="Intern" />
                         </Field>
                         <Field label="Start Year" error={errors.experience?.[idx]?.startYear?.message}>
-                            <Input {...register(`experience.${idx}.startYear` as const)} placeholder="2024" />
+                            <Input
+                                type="number"
+                                {...register(`experience.${idx}.startYear` as const, { valueAsNumber: true })}
+                                placeholder="2024"
+                            />
                         </Field>
                         <Field label="End Year" error={errors.experience?.[idx]?.endYear?.message}>
-                            <Input {...register(`experience.${idx}.endYear` as const)} placeholder="2024" />
+                            <Input
+                                type="number"
+                                {...register(`experience.${idx}.endYear` as const, { valueAsNumber: true })}
+                                placeholder="2024"
+                            />
                         </Field>
                         <Field label="Achievement" error={errors.experience?.[idx]?.achievement?.message} className="md:col-span-2">
                             <Textarea {...register(`experience.${idx}.achievement` as const)} placeholder="What did you achieve?" />
@@ -252,7 +347,7 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                                 Remove
                             </Button>
                         </div>
-                        <Separator className="md:col-span-2" />
+                        {idx < experienceFA.fields.length - 1 && <Separator className="md:col-span-2" />}
                     </div>
                 ))}
             </ArrayCard>
@@ -268,21 +363,21 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                         <Field label="Title" error={errors.projects?.[idx]?.title?.message}>
                             <Input {...register(`projects.${idx}.title` as const)} placeholder="Portfolio Website" />
                         </Field>
+                        <Field label="Link" error={errors.projects?.[idx]?.link?.message}>
+                            <Input {...register(`projects.${idx}.link` as const)} placeholder="https://example.com" />
+                        </Field>
                         <Field label="Description" error={errors.projects?.[idx]?.description?.message} className="md:col-span-2">
                             <Textarea
                                 {...register(`projects.${idx}.description` as const)}
                                 placeholder="Short overview of the project"
                             />
                         </Field>
-                        <Field label="Link" error={errors.projects?.[idx]?.link?.message}>
-                            <Input {...register(`projects.${idx}.link` as const)} placeholder="https://example.com" />
-                        </Field>
                         <div className="flex items-end">
                             <Button variant="secondary" type="button" onClick={() => projectsFA.remove(idx)}>
                                 Remove
                             </Button>
                         </div>
-                        <Separator className="md:col-span-2" />
+                        {idx < projectsFA.fields.length - 1 && <Separator className="md:col-span-2" />}
                     </div>
                 ))}
             </ArrayCard>
@@ -295,14 +390,22 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                             <Input {...register(`skills.${idx}.name` as const)} placeholder="JavaScript" />
                         </Field>
                         <Field label="Level" error={errors.skills?.[idx]?.level?.message}>
-                            <Input {...register(`skills.${idx}.level` as const)} placeholder="Beginner | Intermediate | Advanced" />
+                            <select
+                                {...register(`skills.${idx}.level` as const)}
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <option value="">Select Level</option>
+                                <option value="Beginner">Beginner</option>
+                                <option value="Intermediate">Intermediate</option>
+                                <option value="Advanced">Advanced</option>
+                            </select>
                         </Field>
                         <div className="flex items-end">
                             <Button variant="secondary" type="button" onClick={() => skillsFA.remove(idx)}>
                                 Remove
                             </Button>
                         </div>
-                        <Separator className="md:col-span-2" />
+                        {idx < skillsFA.fields.length - 1 && <Separator className="md:col-span-2" />}
                     </div>
                 ))}
             </ArrayCard>
@@ -319,17 +422,23 @@ export default function ResumeForm({ initialStudentId = "" }: Props) {
                             <Input {...register(`languages.${idx}.name` as const)} placeholder="English" />
                         </Field>
                         <Field label="Fluency" error={errors.languages?.[idx]?.fluency?.message}>
-                            <Input
+                            <select
                                 {...register(`languages.${idx}.fluency` as const)}
-                                placeholder="Basic | Conversational | Fluent | Native"
-                            />
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <option value="">Select Fluency</option>
+                                <option value="Beginner">Beginner</option>
+                                <option value="Intermediate">Intermediate</option>
+                                <option value="Professional">Professional</option>
+                                <option value="Native">Native</option>
+                            </select>
                         </Field>
                         <div className="flex items-end">
                             <Button variant="secondary" type="button" onClick={() => languagesFA.remove(idx)}>
                                 Remove
                             </Button>
                         </div>
-                        <Separator className="md:col-span-2" />
+                        {idx < languagesFA.fields.length - 1 && <Separator className="md:col-span-2" />}
                     </div>
                 ))}
             </ArrayCard>
