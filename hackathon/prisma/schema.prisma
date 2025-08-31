@@ -31,15 +31,19 @@ model Student {
   phoneNo        String?
   course         String?
   cgpa           Float?
-  address       String?
+  address        String?
   authId         String   @unique @db.ObjectId
   auth           Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
- // Relations for Resume
+  
+  // Relations for Resume
   education      Education[]
   experience     Experience[]
   projects       Project[]
   skills         Skill[]
   languages      Language[]
+  
+  // Job Applications
+  applications   JobApplication[]
 }
 
 model Education {
@@ -99,10 +103,14 @@ model Company {
   hrName     String
   hrContact  String
   hrLinkedIn String
+  companyName String  // Added company name field
   createdAt  DateTime @default(now())
 
   authId     String   @unique @db.ObjectId
   auth       Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
+  
+  // Jobs posted by this company
+  jobs       Job[]
 }
 
 model TPO {
@@ -115,8 +123,83 @@ model TPO {
   auth             Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
 }
 
+// New Job-related models
+model Job {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  description       String
+  requirements      String[]    // Array of requirements
+  location          String
+  jobType           JobType
+  workMode          WorkMode
+  salaryMin         Float?
+  salaryMax         Float?
+  experienceMin     Int?        // Minimum years of experience required
+  experienceMax     Int?        // Maximum years of experience
+  skillsRequired    String[]    // Required skills
+  qualifications    String[]    // Educational qualifications required
+  applicationDeadline DateTime
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Company relationship
+  companyId         String      @db.ObjectId
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Job applications
+  applications      JobApplication[]
+  
+  @@index([isActive, applicationDeadline])
+  @@index([companyId])
+}
+
+model JobApplication {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  status      ApplicationStatus @default(PENDING)
+  appliedAt   DateTime          @default(now())
+  coverLetter String?
+  resumeUrl   String?           // URL to uploaded resume if different from profile
+  notes       String?           // Any additional notes from student
+  
+  // Student relationship
+  studentId   String            @db.ObjectId
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  // Job relationship
+  jobId       String            @db.ObjectId
+  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@unique([studentId, jobId]) // Prevent duplicate applications
+  @@index([status])
+  @@index([appliedAt])
+}
+
 enum Role {
   STUDENT
   COMPANY
   TPO
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+  FREELANCE
+}
+
+enum WorkMode {
+  REMOTE
+  ON_SITE
+  HYBRID
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  SHORTLISTED
+  REJECTED
+  SELECTED
+  WITHDRAWN
 }
