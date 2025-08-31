@@ -23,12 +23,75 @@ model Auth {
 model Student {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
   rollNo         String   @unique
-  branch         String
+  branch         String?
   graduationYear Int
   createdAt      DateTime @default(now())
-
+  name           String?
+  linkedin       String?
+  phoneNo        String?
+  course         String?
+  cgpa           Float?
+  address       String?
   authId         String   @unique @db.ObjectId
   auth           Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
+ // Relations for Resume
+  education      Education[]
+  experience     Experience[]
+  projects       Project[]
+  skills         Skill[]
+  languages      Language[]
+}
+
+model Education {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  course      String
+  collegeName String
+  startYear   Int
+  duration    Int      // in years or months
+  cgpa        Float?
+
+  studentId   String   @db.ObjectId
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Experience {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  companyName String
+  position    String
+  startYear   Int
+  endYear     Int?
+  achievement String?
+
+  studentId   String   @db.ObjectId
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  link        String?
+
+  studentId   String   @db.ObjectId
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Skill {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  level     String?   // Beginner, Intermediate, Advanced (optional)
+
+  studentId String   @db.ObjectId
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Language {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  fluency   String?   // e.g., Native, Professional, Intermediate
+
+  studentId String   @db.ObjectId
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
 model Company {
